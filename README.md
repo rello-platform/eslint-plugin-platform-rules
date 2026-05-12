@@ -39,24 +39,24 @@ override per the spec's grace-period schedule.
 
 ## Suppress-comment convention
 
-Block-scope:
-
-```js
-// rello-platform-lint-disable: no-empty-catches -- legacy retire path; cleanup tracked in spec X
-{ /* ... block where the rule is disabled ... */ }
-```
+Suppression uses ESLint's canonical disable directives. This package does NOT
+define a custom suppress directive — earlier rule messages advertised a
+`// rello-platform-lint-disable-next-line: ...` form that was never parsed;
+v0.2.0 drops that advertised phrasing in favor of the canonical ESLint syntax.
 
 Line-scope:
 
 ```js
-// rello-platform-lint-disable-next-line: no-empty-catches -- third-party callback never throws
+// eslint-disable-next-line @rello-platform/platform-rules/no-empty-catches -- third-party callback never throws
 foo.catch(() => {});
 ```
 
-ESLint's standard `eslint-disable-next-line` form also works:
+Block-scope:
 
 ```js
-// eslint-disable-next-line @rello-platform/platform-rules/no-empty-catches -- <reason>
+/* eslint-disable @rello-platform/platform-rules/no-empty-catches -- legacy retire path; cleanup tracked in spec X */
+// ... block where the rule is disabled ...
+/* eslint-enable @rello-platform/platform-rules/no-empty-catches */
 ```
 
 Reasons MUST cite a concrete justification (in-flight migration, third-party
