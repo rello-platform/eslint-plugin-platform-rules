@@ -1,7 +1,7 @@
 {
   "name": "@rello-platform/eslint-plugin-platform-rules",
-  "version": "0.2.0",
-  "description": "ESLint plugin codifying eight Rello platform drift signals from PLATFORM-PATTERNS-CATALOG.md (no-empty-catches, canonical-slug-imports, no-process-env-secret-compare, no-env-var-bearer-fallback, no-inline-tab-arrays, no-redeclared-api-response-types, no-fixture-data-when-upstream-unshipped, lead-not-contact). Mechanical enforcement layer paired with Class-Level Rules + Patterns Catalog.",
+  "version": "0.3.0",
+  "description": "ESLint plugin codifying nine Rello platform drift signals as enforceable lint rules",
   "main": "index.js",
   "files": [
     "index.js",

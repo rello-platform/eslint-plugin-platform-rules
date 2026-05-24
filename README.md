@@ -1,6 +1,6 @@
 # @rello-platform/eslint-plugin-platform-rules
 
-ESLint plugin codifying eight Rello platform drift signals from
+ESLint plugin codifying nine Rello platform drift signals from
 `PLATFORM-PATTERNS-CATALOG.md` as mechanical lint rules. Every rule cites the
 Class-Level Rule (B / C / D / E / F / G / I / J / K / L) it realizes — see
 `PLATFORM-CLASS-LEVEL-RULES.md` for rule bodies.
@@ -21,9 +21,10 @@ third leg of automation.
 | `no-redeclared-api-response-types` | warn (grace) | Rule E | `interface *Response {}` redeclared in consumer files (canonical owner is the api route) |
 | `no-fixture-data-when-upstream-unshipped` | warn (heuristic, permanent) | Rule L | `Math.random()` / improvised zero / "TODO: integrate PR-NNN" in admin api aggregator routes |
 | `lead-not-contact` | warn (heuristic) | (universal floor) | `Contact*` identifiers in code references — use `Lead*` (CLAUDE.md §Core principles) |
+| `no-module-eval-cross-app-clients` | error | (universal floor) | Top-level `export const X = createXClient(...)` / `new <SDK>Client(...)` reading `process.env` at module eval — use lazy-init `getX()` getter |
 
 Severity ramping is configured in `@rello-platform/eslint-config`, not here.
-This plugin exposes all eight rules; consumers select severities via the
+This plugin exposes all nine rules; consumers select severities via the
 shared config (or override per-repo).
 
 ### Recommended config (`.configs.recommended`)
@@ -33,7 +34,7 @@ const platformRules = require("@rello-platform/eslint-plugin-platform-rules");
 module.exports = [platformRules.configs.recommended];
 ```
 
-Default severities: 4 error, 4 warn. Use the platform's `@rello-platform/eslint-config/next`
+Default severities: 5 error, 4 warn. Use the platform's `@rello-platform/eslint-config/next`
 or `/library` exports for the platform-canonical severity table — they
 override per the spec's grace-period schedule.
 
@@ -148,6 +149,23 @@ Heuristic. Flags `Identifier` nodes matching `^([A-Za-z0-9_]*)([Cc])ontact(s|Id|
 Mechanical autofix is **disabled** — cross-file rename would shotgun the
 codebase. A guided `lead-not-contact-codemod` ships in v0.2.0 / Phase 3
 cleanup spec (spec §F1).
+
+### `no-module-eval-cross-app-clients`
+
+Forbids top-level `export const X = createXClient(...)` and
+`export const X = new <SDK>Client(...)` patterns whose initializer reads
+`process.env.*` at module evaluation time. The canonical fix is a lazy-init
+`getX()` singleton getter (PFP@706529c7, HH@8ecf80e8, Milo@0b9b35bd).
+
+Carve-outs (not flagged):
+- `function getX()` lazy-init getters (canonical fix shape)
+- `new Proxy({}, {...})` lazy-proxy pattern
+- Ternary-gated: `process.env.X ? new XClient(...) : null`
+- `PrismaClient` in `src/lib/db.ts` or `src/lib/prisma.ts` (filename whitelist)
+
+SDK constructor allowlist (default): `Anthropic`, `OpenAI`, `Stripe`, `Twilio`,
+`Resend`, `Mailgun`, `SendGrid`, `S3Client`, `BigQuery`. Extend via
+`additionalSdkClasses` rule option.
 
 ## Severity ramp
 

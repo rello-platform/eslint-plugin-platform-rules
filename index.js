@@ -8,6 +8,7 @@ const noInlineTabArrays = require("./lib/rules/no-inline-tab-arrays");
 const noRedeclaredApiResponseTypes = require("./lib/rules/no-redeclared-api-response-types");
 const noFixtureDataWhenUpstreamUnshipped = require("./lib/rules/no-fixture-data-when-upstream-unshipped");
 const leadNotContact = require("./lib/rules/lead-not-contact");
+const noModuleEvalCrossAppClients = require("./lib/rules/no-module-eval-cross-app-clients");
 
 const plugin = {
   meta: {
@@ -23,6 +24,7 @@ const plugin = {
     "no-redeclared-api-response-types": noRedeclaredApiResponseTypes,
     "no-fixture-data-when-upstream-unshipped": noFixtureDataWhenUpstreamUnshipped,
     "lead-not-contact": leadNotContact,
+    "no-module-eval-cross-app-clients": noModuleEvalCrossAppClients,
   },
   configs: {},
 };
@@ -38,6 +40,7 @@ plugin.configs.recommended = {
     "@rello-platform/platform-rules/no-redeclared-api-response-types": "warn",
     "@rello-platform/platform-rules/no-fixture-data-when-upstream-unshipped": "warn",
     "@rello-platform/platform-rules/lead-not-contact": "warn",
+    "@rello-platform/platform-rules/no-module-eval-cross-app-clients": "error",
   },
 };
 
