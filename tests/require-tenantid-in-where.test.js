@@ -49,7 +49,7 @@ ruleTester.run("require-tenantid-in-where", rule, {
       `,
       filename: FILE,
     },
-    // Block-level marker at the transaction entry suppresses every nested op.
+    // Block-level marker INSIDE the transaction callback suppresses nested ops.
     {
       code: `
         await prisma.$transaction(async (tx) => {
@@ -58,6 +58,25 @@ ruleTester.run("require-tenantid-in-where", rule, {
           await tx.call.deleteMany({ where: { leadId } });
           await tx.communicationLog.deleteMany({ where: { leadId } });
         });
+      `,
+      filename: FILE,
+    },
+    // Canonical convention shape: a marker in the ENCLOSING function placed
+    // immediately above the `$transaction(...)` call suppresses every op inside
+    // the callback (the marker sits in the outer function, before the callback
+    // block start — must be honored, per the Wave 1.5/2 transaction-entry
+    // marker convention).
+    {
+      code: `
+        async function deleteLead(id, tenantId) {
+          await prisma.lead.findFirst({ where: { id, tenantId } });
+          // tenant-isolation: EXEMPT-UPSTREAM-VERIFIED — parent Lead tenant-verified above; cascade by FK.
+          await prisma.$transaction(async (tx) => {
+            await tx.note.deleteMany({ where: { leadId: id } });
+            await tx.call.deleteMany({ where: { leadId: id } });
+            await tx.task.deleteMany({ where: { leadId: id } });
+          });
+        }
       `,
       filename: FILE,
     },
