@@ -1,6 +1,6 @@
 # @rello-platform/eslint-plugin-platform-rules
 
-ESLint plugin codifying nine Rello platform drift signals from
+ESLint plugin codifying ten Rello platform drift signals from
 `PLATFORM-PATTERNS-CATALOG.md` as mechanical lint rules. Every rule cites the
 Class-Level Rule (B / C / D / E / F / G / I / J / K / L) it realizes — see
 `PLATFORM-CLASS-LEVEL-RULES.md` for rule bodies.
@@ -22,9 +22,10 @@ third leg of automation.
 | `no-fixture-data-when-upstream-unshipped` | warn (heuristic, permanent) | Rule L | `Math.random()` / improvised zero / "TODO: integrate PR-NNN" in admin api aggregator routes |
 | `lead-not-contact` | warn (heuristic) | (universal floor) | `Contact*` identifiers in code references — use `Lead*` (CLAUDE.md §Core principles) |
 | `no-module-eval-cross-app-clients` | error | (universal floor) | Top-level `export const X = createXClient(...)` / `new <SDK>Client(...)` reading `process.env` at module eval — use lazy-init `getX()` getter |
+| `require-tenantid-in-where` | warn (forcing-function; later → error) | (universal floor) | Prisma query on a tenant-scoped model whose `where` lacks `tenantId` — every query must filter by tenantId (CLAUDE.md §Security & tenant isolation) |
 
 Severity ramping is configured in `@rello-platform/eslint-config`, not here.
-This plugin exposes all nine rules; consumers select severities via the
+This plugin exposes all ten rules; consumers select severities via the
 shared config (or override per-repo).
 
 ### Recommended config (`.configs.recommended`)
@@ -34,7 +35,7 @@ const platformRules = require("@rello-platform/eslint-plugin-platform-rules");
 module.exports = [platformRules.configs.recommended];
 ```
 
-Default severities: 5 error, 4 warn. Use the platform's `@rello-platform/eslint-config/next`
+Default severities: 5 error, 5 warn. Use the platform's `@rello-platform/eslint-config/next`
 or `/library` exports for the platform-canonical severity table — they
 override per the spec's grace-period schedule.
 
@@ -166,6 +167,57 @@ Carve-outs (not flagged):
 SDK constructor allowlist (default): `Anthropic`, `OpenAI`, `Stripe`, `Twilio`,
 `Resend`, `Mailgun`, `SendGrid`, `S3Client`, `BigQuery`. Extend via
 `additionalSdkClasses` rule option.
+
+### `require-tenantid-in-where`
+
+Flags Prisma queries on tenant-scoped models whose `where` clause does not
+filter by `tenantId`. Realizes the universal-floor invariant "every database
+query must filter by `tenantId`" — Layer 1 of the 3-layer structural
+enforcement locked in `DECISION-WALK-LOCKED-ANSWERS-2026-06-01` item A (Layer 2
+= Prisma `$extends` guard; Layer 3 = Postgres RLS). The AST matcher mirrors
+`RECON-RELLO-TENANTID-AST-DELTA-AUDIT-FINDINGS-2026-05-18.md` (the ts-morph
+matcher that surfaced 868 FAIL sites at Rello@`0831cb98`).
+
+What it matches:
+- `<root>.<model>.<op>(...)` where `root` looks like a Prisma client / tx
+  client (`prisma`, `db`, `client`, `tx`, `trx`, `txn`, `t`, or any
+  `prisma`-prefixed identifier — same heuristic as the recon), `model` is in
+  the tenant-scoped set (209 of Rello's 321 schema models carry a `tenantId`
+  column), and `op` is a where-bearing op (`findMany`, `findFirst`,
+  `findUnique[OrThrow]`, `findFirst[OrThrow]`, `count`, `update`, `updateMany`,
+  `delete`, `deleteMany`, `upsert`, `aggregate`, `groupBy`).
+- `where` clause present but no `tenantId` key at any depth (top-level, nested
+  relation predicate `Lead: { tenantId }`, `AND`/`OR` arrays, conditional /
+  logical branches) → **`missingTenantId`**.
+- `update`/`updateMany`/`delete`/`deleteMany`/`upsert`/`findFirst[OrThrow]`/
+  `findUnique[OrThrow]` with NO `where` clause at all → **`missingWhere`**
+  (mass / single-row op with no scoping).
+
+Carve-outs (not flagged):
+- The `EXEMPT-UPSTREAM-VERIFIED` inline marker (Wave 1.5 convention,
+  established PR #39) — `// tenant-isolation: EXEMPT-UPSTREAM-VERIFIED — <trace>`.
+  Recognized as a **per-site** marker (on/adjacent to the call) AND a
+  **block-level** marker (anywhere above the call within the same enclosing
+  function / transaction block — covers tight cascade-delete clusters under
+  one marker, per the Wave 1.5/2 convention).
+- A `where` whose value is a spread (`{ ...baseWhere }`) or an opaque
+  expression (`where: buildWhere(...)` / a variable) — can't be statically
+  resolved at lint time, so treated conservatively as potentially
+  tenant-bearing (the recon's EXEMPT-VIA-HELPER / shorthand class). The
+  EXEMPT-UPSTREAM-VERIFIED marker is the durable suppression for those.
+- Bare `findMany()` / `count()` / `aggregate()` / `groupBy()` with no `where`
+  (unbounded reads / platform snapshots — case-by-case in the recon, not a
+  blanket flag).
+- Non-tenant-scoped models (the 112 models with no `tenantId` column).
+
+`additionalModels` rule option extends the tenant-scoped model set for other
+spokes whose schemas differ.
+
+**Severity: ships at `warn`.** It CANNOT arm to `error` until every AST-FAIL
+site is tenantId-filtered or marker-exempt — building the rule IS the forcing
+function that drives the remaining tenantId waves to green. The flip to
+`error` (a hard pre-push gate, consistent with `no-process-env-secret-compare`)
+is a later phase once the count reaches zero.
 
 ## Severity ramp
 

@@ -9,6 +9,7 @@ const noRedeclaredApiResponseTypes = require("./lib/rules/no-redeclared-api-resp
 const noFixtureDataWhenUpstreamUnshipped = require("./lib/rules/no-fixture-data-when-upstream-unshipped");
 const leadNotContact = require("./lib/rules/lead-not-contact");
 const noModuleEvalCrossAppClients = require("./lib/rules/no-module-eval-cross-app-clients");
+const requireTenantidInWhere = require("./lib/rules/require-tenantid-in-where");
 
 const plugin = {
   meta: {
@@ -25,6 +26,7 @@ const plugin = {
     "no-fixture-data-when-upstream-unshipped": noFixtureDataWhenUpstreamUnshipped,
     "lead-not-contact": leadNotContact,
     "no-module-eval-cross-app-clients": noModuleEvalCrossAppClients,
+    "require-tenantid-in-where": requireTenantidInWhere,
   },
   configs: {},
 };
@@ -41,6 +43,11 @@ plugin.configs.recommended = {
     "@rello-platform/platform-rules/no-fixture-data-when-upstream-unshipped": "warn",
     "@rello-platform/platform-rules/lead-not-contact": "warn",
     "@rello-platform/platform-rules/no-module-eval-cross-app-clients": "error",
+    // Layer 1 of the 3-layer tenantId structural enforcement (DECISION-WALK
+    // item A). Ships at `warn` — it CANNOT arm to `error` until every AST-FAIL
+    // site is tenantId-filtered or marker-exempt; building the rule IS the
+    // forcing function that drives the remaining tenantId waves to green.
+    "@rello-platform/platform-rules/require-tenantid-in-where": "warn",
   },
 };
 
