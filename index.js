@@ -10,6 +10,7 @@ const noFixtureDataWhenUpstreamUnshipped = require("./lib/rules/no-fixture-data-
 const leadNotContact = require("./lib/rules/lead-not-contact");
 const noModuleEvalCrossAppClients = require("./lib/rules/no-module-eval-cross-app-clients");
 const requireTenantidInWhere = require("./lib/rules/require-tenantid-in-where");
+const noDbInLiveness = require("./lib/rules/no-db-in-liveness");
 
 const plugin = {
   meta: {
@@ -27,6 +28,7 @@ const plugin = {
     "lead-not-contact": leadNotContact,
     "no-module-eval-cross-app-clients": noModuleEvalCrossAppClients,
     "require-tenantid-in-where": requireTenantidInWhere,
+    "no-db-in-liveness": noDbInLiveness,
   },
   configs: {},
 };
@@ -48,6 +50,10 @@ plugin.configs.recommended = {
     // site is tenantId-filtered or marker-exempt; building the rule IS the
     // forcing function that drives the remaining tenantId waves to green.
     "@rello-platform/platform-rules/require-tenantid-in-where": "warn",
+    // Ships at `error`: all 7 ecosystem liveness routes (**/health/route.ts) are
+    // DB-free as of the 2026-06-04 NEON-AUTOSUSPEND sweep, so the rule is green
+    // fleet-wide on adoption. The deep /api/health/ready route is not matched.
+    "@rello-platform/platform-rules/no-db-in-liveness": "error",
   },
 };
 
