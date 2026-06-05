@@ -33,6 +33,16 @@ ruleTester.run("no-db-in-liveness", rule, {
       code: 'import { APP_SLUG } from "@/lib/constants"; export async function GET() { return Response.json({ app: APP_SLUG }); }',
       filename: "src/app/api/health/route.ts",
     },
+    // V6 -- nested admin DIAGNOSTIC health route (auth-gated, on-demand) may hit the DB
+    {
+      code: 'import { prisma } from "@/lib/db"; export async function GET() { await prisma.app.findMany(); return Response.json({}); }',
+      filename: "src/app/api/admin/lab/health/route.ts",
+    },
+    // V7 -- per-app admin health probe (dynamic segment) may hit the DB
+    {
+      code: 'import { prisma } from "@/lib/db"; export async function POST() { return Response.json({}); }',
+      filename: "src/app/api/admin/apps/[slug]/health/route.ts",
+    },
   ],
   invalid: [
     // I1 -- `@/lib/db` import in liveness
