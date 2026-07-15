@@ -1,6 +1,6 @@
 {
   "name": "@rello-platform/eslint-plugin-platform-rules",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "ESLint plugin codifying eleven Rello platform drift signals as enforceable lint rules",
   "main": "index.js",
   "files": [

@@ -11,6 +11,7 @@ const leadNotContact = require("./lib/rules/lead-not-contact");
 const noModuleEvalCrossAppClients = require("./lib/rules/no-module-eval-cross-app-clients");
 const requireTenantidInWhere = require("./lib/rules/require-tenantid-in-where");
 const noDbInLiveness = require("./lib/rules/no-db-in-liveness");
+const noNetworkWriteOnClientInterval = require("./lib/rules/no-network-write-on-client-interval");
 
 const plugin = {
   meta: {
@@ -29,6 +30,7 @@ const plugin = {
     "no-module-eval-cross-app-clients": noModuleEvalCrossAppClients,
     "require-tenantid-in-where": requireTenantidInWhere,
     "no-db-in-liveness": noDbInLiveness,
+    "no-network-write-on-client-interval": noNetworkWriteOnClientInterval,
   },
   configs: {},
 };
@@ -54,6 +56,12 @@ plugin.configs.recommended = {
     // DB-free as of the 2026-06-04 NEON-AUTOSUSPEND sweep, so the rule is green
     // fleet-wide on adoption. The deep /api/health/ready route is not matched.
     "@rello-platform/platform-rules/no-db-in-liveness": "error",
+    // Ships at `warn`: a HEURISTIC — it cannot statically prove a given client
+    // poller pauses on hidden/idle, so it points the reviewer at every
+    // client-interval network call (fetch/sendBeacon) to confirm the
+    // DISPATCH-31 guard. The one known live offender (THS useEngagementTracking)
+    // is fixed in the same dispatch; LabDebugPanel is a prod-gated lab tool.
+    "@rello-platform/platform-rules/no-network-write-on-client-interval": "warn",
   },
 };
 
