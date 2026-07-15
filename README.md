@@ -23,9 +23,11 @@ third leg of automation.
 | `lead-not-contact` | warn (heuristic) | (universal floor) | `Contact*` identifiers in code references — use `Lead*` (CLAUDE.md §Core principles) |
 | `no-module-eval-cross-app-clients` | error | (universal floor) | Top-level `export const X = createXClient(...)` / `new <SDK>Client(...)` reading `process.env` at module eval — use lazy-init `getX()` getter |
 | `require-tenantid-in-where` | warn (forcing-function; later → error) | (universal floor) | Prisma query on a tenant-scoped model whose `where` lacks `tenantId` — every query must filter by tenantId (CLAUDE.md §Security & tenant isolation) |
+| `no-db-in-liveness` | error | (NEON-AUTOSUSPEND) | Prisma/DB-client import in a liveness `**/health/route.ts` — liveness must be DB-free so the health poll can't pin Neon compute awake |
+| `no-network-write-on-client-interval` | warn (heuristic) | (NEON-AUTOSUSPEND / DISPATCH-31) | `fetch`/`sendBeacon` driven by an UNGUARDED `setInterval` (or self-rescheduling `setTimeout`) in a `"use client"` module — a client-interval server call wakes the shared hub every beat (even backgrounded) and defeats autosuspend; gate on `document.hidden` + `visibilitychange` or use React-Query `refetchInterval`. Suppressed when the module already handles visibility |
 
 Severity ramping is configured in `@rello-platform/eslint-config`, not here.
-This plugin exposes all ten rules; consumers select severities via the
+This plugin exposes all twelve rules; consumers select severities via the
 shared config (or override per-repo).
 
 ### Recommended config (`.configs.recommended`)
@@ -218,6 +220,55 @@ site is tenantId-filtered or marker-exempt — building the rule IS the forcing
 function that drives the remaining tenantId waves to green. The flip to
 `error` (a hard pre-push gate, consistent with `no-process-env-secret-compare`)
 is a later phase once the count reaches zero.
+
+### `no-network-write-on-client-interval`
+
+Flags a network call — `fetch(...)` (also `window.fetch`) or `*.sendBeacon(...)`
+— reached from an **unguarded** `setInterval` (or self-rescheduling `setTimeout`)
+handler inside a `"use client"` module. Realizes
+the NEON-AUTOSUSPEND heartbeat-write drift class codified in DISPATCH-31: a
+`"use client"` component that calls the server on a fixed interval keeps firing
+for as long as the tab is open — **including while the tab is backgrounded**,
+where the browser still runs the timer (throttled to ~60s). Each call at minimum
+authenticates against the shared Neon hub (a `leadSession.findUnique` read) and
+usually writes, so one abandoned/hidden portal tab pins the endpoint awake 24/7
+and defeats autosuspend. The live offender was TheHomeStretch
+`useEngagementTracking` (`setInterval(sendHeartbeat, 30_000)` →
+`POST /api/portal/track` → `prisma.event.count` + `prisma.event.create` per
+beat), which held `ep-hidden-forest` awake for 23h.
+
+What it matches:
+- Module has a leading `"use client"` directive, AND
+- a `setInterval(handler, …)` / `window.setInterval(handler, …)` call where
+  `handler` transitively contains a `fetch`/`sendBeacon` call. The handler is
+  resolved whether it is inline (`() => { fetch(...) }`), a named
+  function/`FunctionDeclaration` referenced by identifier
+  (`setInterval(sendHeartbeat, …)`), or a `useCallback(() => …)`-wrapped
+  identifier — matching the React idioms these pollers use. Network calls nested
+  in inner functions of the handler still count.
+
+Not matched (out of scope / correct shapes):
+- Server / node modules with no `"use client"` directive (legitimate cron
+  pollers, scripts).
+- Event-driven network calls (on click, `pagehide`/`visibilitychange`,
+  `IntersectionObserver`) — the correct telemetry shape.
+- A client interval that does no network call (local state ticks, animations).
+- A one-shot `setTimeout(fetch, …)` (not a poll loop — no re-arm).
+- **Guarded pollers:** the rule suppresses for the whole file when the module
+  already references `document.hidden`, `*.visibilityState`, or a
+  `"visibilitychange"` listener — so the canonical `NotificationDropdownProvider`
+  pause/resume shape and React-Query `refetchInterval` (which uses no
+  `setInterval`) never fire. This makes the rule catch only *unguarded* pollers.
+
+**Severity: ships at `warn` (heuristic).** The property that makes an interval
+poller *safe* — it clears itself while `document.hidden`, stops after an idle
+window, and emits only on a milestone / on unload — is not statically decidable,
+so the rule points the reviewer at every client-interval network call to confirm
+the guard rather than hard-failing. When a poller is genuinely safe, disable it
+inline with a concrete justification (per the suppress-comment convention above).
+The one known live offender is fixed in DISPATCH-31; `LabDebugPanel`'s 3s poll is
+a prod-gated (`NODE_ENV==="production" && ENABLE_LAB_ENDPOINTS!=="true"`) internal
+lab tool, tracked but not fixed.
 
 ## Severity ramp
 
