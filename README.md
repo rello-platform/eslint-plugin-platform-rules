@@ -24,7 +24,7 @@ third leg of automation.
 | `no-module-eval-cross-app-clients` | error | (universal floor) | Top-level `export const X = createXClient(...)` / `new <SDK>Client(...)` reading `process.env` at module eval — use lazy-init `getX()` getter |
 | `require-tenantid-in-where` | warn (forcing-function; later → error) | (universal floor) | Prisma query on a tenant-scoped model whose `where` lacks `tenantId` — every query must filter by tenantId (CLAUDE.md §Security & tenant isolation) |
 | `no-db-in-liveness` | error | (NEON-AUTOSUSPEND) | Prisma/DB-client import in a liveness `**/health/route.ts` — liveness must be DB-free so the health poll can't pin Neon compute awake |
-| `no-network-write-on-client-interval` | warn (heuristic) | (NEON-AUTOSUSPEND / DISPATCH-31) | `fetch`/`sendBeacon` driven by `setInterval` in a `"use client"` module — a client-interval server call wakes the shared hub every beat (even backgrounded) and defeats autosuspend; emit on milestone/unload with a hidden/idle pause instead |
+| `no-network-write-on-client-interval` | warn (heuristic) | (NEON-AUTOSUSPEND / DISPATCH-31) | `fetch`/`sendBeacon` driven by an UNGUARDED `setInterval` (or self-rescheduling `setTimeout`) in a `"use client"` module — a client-interval server call wakes the shared hub every beat (even backgrounded) and defeats autosuspend; gate on `document.hidden` + `visibilitychange` or use React-Query `refetchInterval`. Suppressed when the module already handles visibility |
 
 Severity ramping is configured in `@rello-platform/eslint-config`, not here.
 This plugin exposes all twelve rules; consumers select severities via the
@@ -224,7 +224,8 @@ is a later phase once the count reaches zero.
 ### `no-network-write-on-client-interval`
 
 Flags a network call — `fetch(...)` (also `window.fetch`) or `*.sendBeacon(...)`
-— reached from a `setInterval` handler inside a `"use client"` module. Realizes
+— reached from an **unguarded** `setInterval` (or self-rescheduling `setTimeout`)
+handler inside a `"use client"` module. Realizes
 the NEON-AUTOSUSPEND heartbeat-write drift class codified in DISPATCH-31: a
 `"use client"` component that calls the server on a fixed interval keeps firing
 for as long as the tab is open — **including while the tab is backgrounded**,
@@ -252,6 +253,12 @@ Not matched (out of scope / correct shapes):
 - Event-driven network calls (on click, `pagehide`/`visibilitychange`,
   `IntersectionObserver`) — the correct telemetry shape.
 - A client interval that does no network call (local state ticks, animations).
+- A one-shot `setTimeout(fetch, …)` (not a poll loop — no re-arm).
+- **Guarded pollers:** the rule suppresses for the whole file when the module
+  already references `document.hidden`, `*.visibilityState`, or a
+  `"visibilitychange"` listener — so the canonical `NotificationDropdownProvider`
+  pause/resume shape and React-Query `refetchInterval` (which uses no
+  `setInterval`) never fire. This makes the rule catch only *unguarded* pollers.
 
 **Severity: ships at `warn` (heuristic).** The property that makes an interval
 poller *safe* — it clears itself while `document.hidden`, stops after an idle

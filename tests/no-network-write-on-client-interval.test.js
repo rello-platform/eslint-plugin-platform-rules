@@ -8,8 +8,7 @@ const ruleTester = new RuleTester({
 
 ruleTester.run("no-network-write-on-client-interval", rule, {
   valid: [
-    // V1 -- no "use client" directive: server/module code may legitimately poll
-    // (cron pollers, node scripts) — out of scope.
+    // V1 -- no "use client" directive: server/module code may legitimately poll.
     {
       code: 'setInterval(() => { fetch("/api/x"); }, 1000);',
     },
@@ -21,7 +20,7 @@ ruleTester.run("no-network-write-on-client-interval", rule, {
     {
       code: '"use client";\nfunction onClick() { fetch("/api/x", { method: "POST" }); }',
     },
-    // V4 -- "use client" with sendBeacon on unload (event-driven, the correct shape).
+    // V4 -- "use client" with sendBeacon on unload (event-driven, correct shape).
     {
       code: '"use client";\nwindow.addEventListener("pagehide", () => { navigator.sendBeacon("/api/x", "d"); });',
     },
@@ -29,9 +28,28 @@ ruleTester.run("no-network-write-on-client-interval", rule, {
     {
       code: '"use client";\nfunction tick() { doLocalWork(); }\nsetInterval(tick, 5000);',
     },
+    // V6 -- GUARDED poll: handler early-returns on document.hidden (canonical
+    //       Rello NotificationDropdownProvider shape) -> suppressed.
+    {
+      code:
+        '"use client";\n' +
+        'function fetchUnread() { if (document.hidden) return; fetch("/api/x"); }\n' +
+        'setInterval(fetchUnread, 30000);',
+    },
+    // V7 -- module wires a visibilitychange listener -> trusted, suppressed.
+    {
+      code:
+        '"use client";\n' +
+        'document.addEventListener("visibilitychange", () => {});\n' +
+        'setInterval(() => { fetch("/api/x"); }, 30000);',
+    },
+    // V8 -- one-shot setTimeout(fetch) is not a poll loop (no re-arm).
+    {
+      code: '"use client";\nsetTimeout(() => { fetch("/api/x"); }, 500);',
+    },
   ],
   invalid: [
-    // I1 -- inline arrow handler with fetch (LabDebugPanel shape).
+    // I1 -- inline arrow handler with fetch (LabDebugPanel shape), no guard.
     {
       code: '"use client";\nsetInterval(() => { fetch("/api/lab/debug-log"); }, 3000);',
       errors: [{ messageId: "networkOnInterval" }],
@@ -49,11 +67,11 @@ ruleTester.run("no-network-write-on-client-interval", rule, {
     {
       code:
         '"use client";\n' +
-        'const sendHeartbeat = useCallback(() => { fetch("/api/portal/track", { method: "POST" }); }, []);\n' +
-        'const ref = setInterval(sendHeartbeat, 30000);',
+        'const fetchState = useCallback(() => { fetch("/api/state"); }, []);\n' +
+        'const ref = setInterval(fetchState, 30000);',
       errors: [{ messageId: "networkOnInterval" }],
     },
-    // I4 -- window.setInterval + navigator.sendBeacon on a timer.
+    // I4 -- window.setInterval + navigator.sendBeacon on a timer, no guard.
     {
       code: '"use client";\nwindow.setInterval(() => { navigator.sendBeacon("/api/x", "d"); }, 60000);',
       errors: [{ messageId: "networkOnInterval" }],
@@ -64,6 +82,19 @@ ruleTester.run("no-network-write-on-client-interval", rule, {
         '"use client";\n' +
         'setInterval(() => { const go = async () => { await fetch("/api/x"); }; go(); }, 10000);',
       errors: [{ messageId: "networkOnInterval" }],
+    },
+    // I6 -- self-rescheduling setTimeout poll loop with fetch, no guard.
+    {
+      code:
+        '"use client";\n' +
+        'function poll() { fetch("/api/x"); setTimeout(poll, 30000); }\n' +
+        'setTimeout(poll, 30000);',
+      errors: [
+        // Fires on both the outer kickoff and the inner re-arm (both are
+        // rescheduling setTimeouts whose handler fetches).
+        { messageId: "networkOnInterval" },
+        { messageId: "networkOnInterval" },
+      ],
     },
   ],
 });
