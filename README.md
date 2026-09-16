@@ -23,7 +23,7 @@ third leg of automation.
 | `lead-not-contact` | warn (heuristic) | (universal floor) | `Contact*` identifiers in code references — use `Lead*` (CLAUDE.md §Core principles) |
 | `no-module-eval-cross-app-clients` | error | (universal floor) | Top-level `export const X = createXClient(...)` / `new <SDK>Client(...)` reading `process.env` at module eval — use lazy-init `getX()` getter |
 | `require-tenantid-in-where` | warn (forcing-function; later → error) | (universal floor) | Prisma query on a tenant-scoped model whose `where` lacks `tenantId` — every query must filter by tenantId (CLAUDE.md §Security & tenant isolation) |
-| `no-db-in-liveness` | error | (NEON-AUTOSUSPEND) | Prisma/DB-client import in a liveness `**/health/route.ts` — liveness must be DB-free so the health poll can't pin Neon compute awake |
+| `no-db-in-liveness` | error | (NEON-AUTOSUSPEND) | Prisma/DB-client reaching a liveness `**/health/route.ts` — directly OR through the transitive import closure of its helpers (A-111) — liveness must be DB-free so the health poll can't pin Neon compute awake |
 | `no-network-write-on-client-interval` | warn (heuristic) | (NEON-AUTOSUSPEND / DISPATCH-31) | `fetch`/`sendBeacon` driven by an UNGUARDED `setInterval` (or self-rescheduling `setTimeout`) in a `"use client"` module — a client-interval server call wakes the shared hub every beat (even backgrounded) and defeats autosuspend; gate on `document.hidden` + `visibilitychange` or use React-Query `refetchInterval`. Suppressed when the module already handles visibility |
 
 Severity ramping is configured in `@rello-platform/eslint-config`, not here.

@@ -1,6 +1,16 @@
 "use strict";
+const path = require("path");
+const fs = require("fs");
 const { RuleTester } = require("eslint");
 const rule = require("../lib/rules/no-db-in-liveness");
+
+// A-111 fixtures live on disk (the transitive walk reads modules from the
+// filesystem). Reference them by absolute path so resolution is cwd-independent.
+const FIX = path.join(__dirname, "fixtures");
+const taintedRoute = path.join(FIX, "tainted/app/api/health/route.ts");
+const cleanRoute = path.join(FIX, "clean/app/api/health/route.ts");
+const cycleRoute = path.join(FIX, "cycle/app/api/health/route.ts");
+const read = (f) => fs.readFileSync(f, "utf8");
 
 const ruleTester = new RuleTester({
   languageOptions: { ecmaVersion: 2022, sourceType: "module" },
@@ -43,6 +53,18 @@ ruleTester.run("no-db-in-liveness", rule, {
       code: 'import { prisma } from "@/lib/db"; export async function POST() { return Response.json({}); }',
       filename: "src/app/api/admin/apps/[slug]/health/route.ts",
     },
+    // V8 (A-111) -- liveness whose transitive closure (route → helper → util) is
+    // DB-free must NOT fire, even though the walk follows the real chain.
+    {
+      code: read(cleanRoute),
+      filename: cleanRoute,
+    },
+    // V9 (A-111) -- a mutual import cycle in the closure must terminate (no hang)
+    // and, being DB-free, must NOT fire.
+    {
+      code: read(cycleRoute),
+      filename: cycleRoute,
+    },
   ],
   invalid: [
     // I1 -- `@/lib/db` import in liveness
@@ -80,6 +102,18 @@ ruleTester.run("no-db-in-liveness", rule, {
       code: 'import { prisma } from "../../../lib/db"; export async function GET() { return Response.json({}); }',
       filename: "src/app/api/health/route.ts",
       errors: [{ messageId: "dbInLiveness" }],
+    },
+    // I7 (A-111 plant) -- the route's OWN imports are all DB-free, but a helper
+    // three hops down (route → @/lib/health/collect → @/lib/__plant__/deep →
+    // @/lib/db) reaches the DB client. The pre-A-111 rule passed this green; the
+    // transitive walk now reports it, naming the chain, on the helper import.
+    {
+      code: read(taintedRoute),
+      filename: taintedRoute,
+      // message-only assertion (RuleTester forbids message + messageId together):
+      // proves both that it errors AND that the reported chain names every hop
+      // from the route down to the DB client.
+      errors: [{ message: /reaches a DB client.*@\/lib\/health\/collect → @\/lib\/__plant__\/deep → @\/lib\/db/ }],
     },
   ],
 });
