@@ -217,15 +217,15 @@ For a single line, use the canonical disable comment with a reason.
 The second brand guard, for files a site serves without passing through ESLint. Same matcher as the rule (whole word or compound; HTML entities and JSON `\u` escapes decoded; URLs, hosts, emails and paths skipped); legacy name only, since a Markdown file cannot import `PLATFORM_BRAND`. No dependencies.
 
 ```bash
-node node_modules/@rello-platform/eslint-plugin-platform-rules/bin/brand-content-scan.js            # default globs
-node node_modules/@rello-platform/eslint-plugin-platform-rules/bin/brand-content-scan.js "content/**/*.md"
+npx brand-content-scan                     # default globs
+npx brand-content-scan "content/**/*.md"   # your own globs
 ```
 
 - Default globs: `public/**/*.{json,md,mdx,txt,html,webmanifest}` and `src/**/*.{json,md,mdx}` (`node_modules`, `.git`, `.next` skipped).
 - Prints `file:line: "Rello" — <line>` per hit, then a summary line with the number of files scanned.
 - Allow file: `--allow <file>`, else `.brand-scan-allow` at the root when present; one file glob per line, `#` comments.
 - Exit: `0` no hits · `1` hits · `2` an unreadable file or bad arguments (never reported clean).
-- Consumers add it as a package script, `"brand:scan": "node node_modules/@rello-platform/eslint-plugin-platform-rules/bin/brand-content-scan.js"`. It is not a hook.
+- Consumers add it as a package script by its bin name, `"brand:scan": "brand-content-scan"`. It is not a hook. Use the bin name, not `node node_modules/…/brand-content-scan.js`: if the plugin is missing, the bin name fails with 127 (command not found), while the node path exits 1, the same code as "hits".
 
 ### `no-module-eval-cross-app-clients`
 
