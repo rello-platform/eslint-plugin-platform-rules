@@ -36,6 +36,14 @@ describe("brand-content-scan: matcher per line", () => {
     assert.equal(scanLine('{"heading":"R\\u0065llo"}', "public/a.json").length, 1);
     assert.equal(scanLine("RELLO PLATFORM", "public/a.txt").length, 1);
   });
+  it("matches text right next to markup, and semicolon-less numeric references (RA-06, RA-07 A)", () => {
+    assert.equal(scanLine("</p><p>Rello</p>", "public/a.html").length, 1);
+    assert.equal(scanLine("<p>R&#101llo</p>", "public/a.html").length, 1);
+    assert.equal(scanLine("<p>R&#x65llo</p>", "public/a.md").length, 1);
+    assert.deepEqual(scanLine('<a href="/welcome/Rello">Go</a>', "public/a.html"), []);
+    assert.deepEqual(scanLine('<a href="https://Rello.app/x">Go</a>', "public/a.html"), []);
+    assert.deepEqual(scanLine('{"key":"RELLO2_URL"}', "public/a.json"), []);
+  });
   it("stays silent on the slug, hosts, env names and other words", () => {
     for (const line of [
       '{"slug":"rello"}',

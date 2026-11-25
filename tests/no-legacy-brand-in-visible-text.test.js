@@ -128,6 +128,18 @@ ruleTester.run("no-legacy-brand-in-visible-text", rule, {
     { code: "const el = <p>Morello &amp; Prello</p>;", filename: SRC },
     { code: 'const el = <p title="Morello &amp; Prello">x</p>;', filename: SRC },
 
+    // ── RA-06: inside HTML, real paths / URLs / emails stay exempt ────────
+    { code: 'const html = `<p>${x}</p><a href="/welcome/Rello">Go</a>`;', filename: LIB },
+    { code: 'const html = `<p>${x}</p><a href="https://Rello.app/x">Go</a>`;', filename: LIB },
+    { code: 'const html = "<p>Write to help@Rello.app</p>";', filename: LIB },
+    { code: 'const html = "<p>See /docs/Rello/setup</p>";', filename: LIB },
+    // ── RA-07 A: a semicolon-less numeric reference decodes only in HTML ───
+    { code: "const x = <p>R&#101llo</p>;", filename: SRC }, // JSX renders it literally
+    { code: 'const s = "R&#101llo";', filename: LIB }, // not HTML: shown literally
+    // ── RA-08: an uppercase env-style identifier is internal ──────────────
+    { code: 'const k = process.env["RELLO2_URL"];', filename: LIB },
+    { code: 'const k = "RELLO2_KEY";', filename: LIB },
+
     // ── (c) the bare RELLO routing literal outside rendered JSX ───────────
     { code: 'const id = toSourceAppIdentifier("RELLO");', filename: LIB },
     { code: 'const src = "RELLO";', filename: LIB },
@@ -260,6 +272,14 @@ ruleTester.run("no-legacy-brand-in-visible-text", rule, {
         { messageId: "legacyBrand", data: { found: "Rello" }, line: 1, column: 38 },
       ],
     },
+
+    // ── RA-06: text right next to markup is text, not a path ──────────────
+    { code: "const email = `<p>${name}</p><p>R&#101;llo</p>`;", filename: LIB, errors: [legacy("Rello")] },
+    { code: "const email = `<p>${name}</p><p>Rello</p>`;", filename: LIB, errors: [legacy("Rello")] },
+    { code: 'const html = "<td>Rello</td><td>RelloCRM</td>";', filename: LIB, errors: [legacy("Rello"), legacy("Rello")] },
+    // ── RA-07 A: numeric references without a semicolon, in HTML ──────────
+    { code: "const email = `<p>R&#101llo</p>`;", filename: LIB, errors: [legacy("Rello")] },
+    { code: "const email = `<p>R&#x65llo</p>`;", filename: LIB, errors: [legacy("Rello")] },
 
     // ── (c) RELLO shown in rendered JSX reports; the routing exemption is outside JSX ──
     { code: 'const el = <h1>{"RELLO"}</h1>;', filename: SRC, errors: [legacy("RELLO")] },

@@ -171,7 +171,7 @@ const shown = tenant?.tenantName || PLATFORM_BRAND.name;
 
 inside JSX text, JSX string attributes (`title`, `alt`, `aria-label`, `placeholder`, `content`, and any prop of a Capitalized component), and string/template literals (`metadata.title`, From names, toast text, API error messages, Error and throw messages, email subjects).
 
-It tests what **renders**, not the source spelling: the cooked value of string literals and template chunks (`"R\u0065llo"`), HTML entities in JSX text and attributes (`R&#101;llo`), entities inside strings or templates that read as HTML (`` html: `<h1>R&#101;llo</h1>` ``), and invisible zero-width / soft-hyphen characters inside the word. Report locations stay exact through entities and escapes.
+It tests what **renders**, not the source spelling: the cooked value of string literals and template chunks (`"R\u0065llo"`), HTML entities in JSX text and attributes (`R&#101;llo`), entities inside strings or templates that read as HTML (`` html: `<h1>R&#101;llo</h1>` ``), and invisible zero-width / soft-hyphen characters inside the word. In HTML text a numeric reference decodes without its semicolon too (`R&#101llo`; JSX leaves that literal, so JSX does not), and text beside tags is matched as text (`</p><p>Rello</p>`) while real paths and URLs in attributes stay exempt. An uppercase env-style word (`RELLO2_URL`) is never the brand. Report locations stay exact through entities and escapes.
 
 **Does not report** — internal names stay "Rello":
 
@@ -205,6 +205,7 @@ For a single line, use the canonical disable comment with a reason.
 | runtime concatenation | `<h1>{"Rel" + "lo"}</h1>`, `"Rel".concat("lo")` | the value exists only at run time |
 | a log-named object that writes the DOM | `const log = { info: (t) => { el.textContent = t; } }; log.info("Rello");` | `log.*` arguments are exempt by name |
 | a DOM write inside a `console.*` callback | `console.log(items.map(() => { el.textContent = "Rello"; return 1; }));` | the log-argument exemption covers the callback |
+| a named HTML entity outside the decoder's short table | `` `<p>Rel&NegativeThinSpace;lo</p>` `` (also JSX text and `brand-content-scan`) | the full HTML named-entity table is ~2,000 names; only common ones decode (RA-07 B, KA ruling: documented, not fixed). Numeric references (`&#101;`, `&#x65;`, and in HTML `&#101llo`) always decode |
 
 **Served content** — JSON, Markdown, HTML and text files that a site serves directly never pass through ESLint. Scan them with the CLI in this package (below).
 

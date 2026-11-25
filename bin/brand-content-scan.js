@@ -28,13 +28,14 @@
 
 const fs = require("fs");
 const path = require("path");
-const { decode, decodeJsEscapes, findBrandMatches } = require("../lib/brand-text");
+const { decode, decodeJsEscapes, findBrandMatches, looksLikeHtml } = require("../lib/brand-text");
 const { globToRegExp } = require("../lib/rules/no-legacy-brand-in-visible-text")._internal;
 
 const DEFAULT_GLOBS = ["public/**/*.{json,md,mdx,txt,html,webmanifest}", "src/**/*.{json,md,mdx}"];
 const DEFAULT_ALLOW_FILE = ".brand-scan-allow";
 const SKIP_DIRS = new Set(["node_modules", ".git", ".next", ".turbo", ".vercel", "coverage"]);
 const JSON_EXT_RE = /\.(?:json|webmanifest)$/i;
+const HTML_EXT_RE = /\.html?$/i;
 
 function usage(code, msg) {
   if (msg) process.stderr.write(`brand-content-scan: ${msg}\n`);
@@ -137,8 +138,9 @@ function readAllowGlobs(file) {
 function scanLine(line, relPath) {
   let text = line;
   if (JSON_EXT_RE.test(relPath)) text = decodeJsEscapes(text).text;
-  text = decode(text, { entities: true }).text;
-  return findBrandMatches(text).filter((h) => h.messageId === "legacyBrand");
+  const html = HTML_EXT_RE.test(relPath) || looksLikeHtml(text);
+  text = decode(text, { entities: true, html }).text;
+  return findBrandMatches(text, { html }).filter((h) => h.messageId === "legacyBrand");
 }
 
 function main() {
