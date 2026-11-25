@@ -25,9 +25,10 @@ third leg of automation.
 | `require-tenantid-in-where` | warn (forcing-function; later → error) | (universal floor) | Prisma query on a tenant-scoped model whose `where` lacks `tenantId` — every query must filter by tenantId (CLAUDE.md §Security & tenant isolation) |
 | `no-db-in-liveness` | error | (NEON-AUTOSUSPEND) | Prisma/DB-client reaching a liveness `**/health/route.ts` — directly OR through the transitive import closure of its helpers (A-111) — liveness must be DB-free so the health poll can't pin Neon compute awake |
 | `no-network-write-on-client-interval` | warn (heuristic) | (NEON-AUTOSUSPEND / DISPATCH-31) | `fetch`/`sendBeacon` driven by an UNGUARDED `setInterval` (or self-rescheduling `setTimeout`) in a `"use client"` module — a client-interval server call wakes the shared hub every beat (even backgrounded) and defeats autosuspend; gate on `document.hidden` + `visibilitychange` or use React-Query `refetchInterval`. Suppressed when the module already handles visibility |
+| `no-legacy-brand-in-visible-text` | error, opt-in per repo (not in `recommended`) | (RALLYROO Phase 2) | "Rello" — or a hand-typed "Rallyroo"/"RallyRoo"/"RALLYROO" — in JSX text, visible JSX attributes or string/template literals; read `PLATFORM_BRAND.name` from `@rello-platform/slugs` (≥ v0.14.0). Logs, throws, keys, imports, slugs, hosts, headers and env names exempt |
 
 Severity ramping is configured in `@rello-platform/eslint-config`, not here.
-This plugin exposes all twelve rules; consumers select severities via the
+This plugin exposes all thirteen rules; consumers select severities via the
 shared config (or override per-repo).
 
 ### Recommended config (`.configs.recommended`)
@@ -152,6 +153,50 @@ Heuristic. Flags `Identifier` nodes matching `^([A-Za-z0-9_]*)([Cc])ontact(s|Id|
 Mechanical autofix is **disabled** — cross-file rename would shotgun the
 codebase. A guided `lead-not-contact-codemod` ships in v0.2.0 / Phase 3
 cleanup spec (spec §F1).
+
+### `no-legacy-brand-in-visible-text`
+
+The product is renamed Rello → Rallyroo (PLATFORM-RENAME-RALLYROO). Visible text reads the name from one place, `PLATFORM_BRAND` in `@rello-platform/slugs` (v0.14.0+), so the old name cannot creep back and a later rename is one package release.
+
+```ts
+import { PLATFORM_BRAND } from "@rello-platform/slugs";
+<h1>Welcome to {PLATFORM_BRAND.name}</h1>;
+const shown = tenant?.tenantName || PLATFORM_BRAND.name;
+```
+
+**Reports** (one report per occurrence):
+
+- `legacyBrand` — the whole word `Rello` or `RELLO` (`Rello's`, `Rello-branded`, `Rello.` included);
+- `handTypedBrand` — `Rallyroo`, `RallyRoo`, `RALLYROO` or any other non-lowercase spelling typed by hand;
+
+inside JSX text, JSX string attributes (`title`, `alt`, `aria-label`, `placeholder`, `content`, component props such as `heading`), and string/template literals (`metadata.title`, From names, toast text, API error messages, email subjects).
+
+**Does not report** — internal names stay "Rello":
+
+- arguments of `console.*`, `logger.*` / `log.*` / `*Logger.*` calls, anything under `throw`, and `new Error(...)` / any `new *Error(...)`;
+- import/export sources, `import()`, `require()`, `vi.mock()` / `jest.mock()` specifiers;
+- object, class and interface keys; identifiers; comments; TS literal types;
+- lowercase `rello` (the app slug) and a literal that is exactly `RELLO` (the routing identifier);
+- tokens that are URLs, hostnames, email addresses or paths (`hellorello.app` and subdomains are domain-phase work), header names (`X-Rello-…`) and env var names (`RELLO_…`);
+- comparison operands, `case` tests and the search argument of `includes` / `startsWith` / `endsWith` / `indexOf` / `replace` / `replaceAll` / `split` / `match` / `search`;
+- SQL / GraphQL / style tagged templates (`sql`, `$queryRaw`, `gql`, `css`, `styled`, …);
+- non-visible JSX attributes: `className`, `id`, `key`, `ref`, `href`, `src`, `name`, `type`, `role`, `rel`, `target`, `htmlFor`, `style`, `data-*`, …;
+- test, spec, mock, fixture and story files by name (`*.test.*`, `*.pg-test.*`, `*.node-test.*`, `*.test-helper.*`, `*.testkit.*`, `*.spec.*`, `*.fixture(s).*`, `*.stories.*`, `__tests__/`, `__fixtures__/`, `__mocks__/`).
+
+**Option** — `allow`: file globs (`**`, `*`, `?`) for genuine exceptions, matched against the path relative to the ESLint cwd and the absolute path:
+
+```js
+"@rello-platform/platform-rules/no-legacy-brand-in-visible-text": [
+  "error",
+  { allow: ["src/test/**", "src/lib/outreach/*.reviewed.ts"] },
+],
+```
+
+For a single line, use the canonical disable comment with a reason.
+
+**Rollout.** Not in `configs.recommended`: every repo still has visible "Rello" copy, so a shared default would turn every consumer red on the bump. Each repo adds it at `"error"` in its own ESLint config in the PR that clears that repo's copy. No autofix: the fix is an import plus an expression, and whether the string wants `name`, `domain` or `supportEmail` is the author's call.
+
+**Measured reach** (v0.6.0, hub `kellydavidsansom/Rello` @ `36e28325`, `src/`, rule off in the repo): 903 reports on 850 lines in 328 files.
 
 ### `no-module-eval-cross-app-clients`
 

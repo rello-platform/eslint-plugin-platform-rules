@@ -12,6 +12,7 @@ const noModuleEvalCrossAppClients = require("./lib/rules/no-module-eval-cross-ap
 const requireTenantidInWhere = require("./lib/rules/require-tenantid-in-where");
 const noDbInLiveness = require("./lib/rules/no-db-in-liveness");
 const noNetworkWriteOnClientInterval = require("./lib/rules/no-network-write-on-client-interval");
+const noLegacyBrandInVisibleText = require("./lib/rules/no-legacy-brand-in-visible-text");
 
 const plugin = {
   meta: {
@@ -31,6 +32,7 @@ const plugin = {
     "require-tenantid-in-where": requireTenantidInWhere,
     "no-db-in-liveness": noDbInLiveness,
     "no-network-write-on-client-interval": noNetworkWriteOnClientInterval,
+    "no-legacy-brand-in-visible-text": noLegacyBrandInVisibleText,
   },
   configs: {},
 };
@@ -62,6 +64,10 @@ plugin.configs.recommended = {
     // DISPATCH-31 guard. The one known live offender (THS useEngagementTracking)
     // is fixed in the same dispatch; LabDebugPanel is a prod-gated lab tool.
     "@rello-platform/platform-rules/no-network-write-on-client-interval": "warn",
+    // no-legacy-brand-in-visible-text is deliberately NOT here (RALLYROO Phase 2).
+    // Every repo still has visible "Rello" copy today, so adding it to a shared
+    // config would turn every consumer's lint red on the bump. Each repo turns it
+    // on at "error" in its own eslint config, in the PR that clears its copy.
   },
 };
 
