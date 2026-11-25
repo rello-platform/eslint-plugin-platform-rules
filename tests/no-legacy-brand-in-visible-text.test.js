@@ -48,12 +48,11 @@ ruleTester.run("no-legacy-brand-in-visible-text", rule, {
     { code: 'logger.info("Rello sync done");', filename: LIB },
     { code: 'this.logger.error({ msg: "Rello sync failed" });', filename: LIB },
     { code: 'log.warn("Rello");', filename: LIB },
-    { code: 'throw new Error("Rello API returned 500");', filename: LIB },
-    { code: 'const e = new Error(`Rello lead ${id} missing`);', filename: LIB },
-    { code: 'throw new TypeError("Rello tenant missing");', filename: LIB },
-    { code: 'throw new RelloApiError("Rello rejected the key");', filename: LIB },
-    { code: 'throw "Rello is down";', filename: LIB },
-    { code: 'return Promise.reject(new Error("Rello down"));', filename: LIB },
+    // An Error inside a log call is still a log argument.
+    { code: 'console.error(new Error("Rello down"));', filename: LIB },
+    { code: 'logger.warn("retry", new TypeError("Rello timeout"));', filename: LIB },
+    // The class name is an identifier; only its message string is text.
+    { code: "class RelloApiError extends Error {}", filename: LIB },
 
     // ── import paths and module specifiers ────────────────────────────────
     { code: 'import { x } from "@/lib/Rello/client";', filename: LIB },
@@ -114,7 +113,31 @@ ruleTester.run("no-legacy-brand-in-visible-text", rule, {
 
     // ── non-brand words that merely contain the letters ───────────────────
     { code: 'const w = "Morello cherries, Prello, Relloc";', filename: LIB },
-    { code: 'const w = "RelloCRM";', filename: LIB },
+
+    // ── (a) compounds: internal names stay silent where they already were ──
+    { code: "const RelloCRM = 1; function RelloHub() { return null; }", filename: LIB },
+    { code: 'import { c } from "@/lib/RelloCRM/client";', filename: LIB },
+    { code: 'const v = process.env.RELLO2_URL; const k = "RELLO_V2_KEY";', filename: LIB },
+    { code: 'const s = "rello2"; const t = "relloCrm";', filename: LIB },
+    { code: 'const s = "RELLOAPI";', filename: LIB },
+    { code: 'const map = { RelloCRM: 1, "RelloHub": 2 };', filename: LIB },
+    { code: 'const u = "https://RelloCRM.app/x";', filename: LIB },
+
+    // ── (b) entities decode only where they render: JSX, and HTML-looking strings ──
+    { code: 'const s = "R&#101;llo";', filename: LIB },
+    { code: "const el = <p>Morello &amp; Prello</p>;", filename: SRC },
+    { code: 'const el = <p title="Morello &amp; Prello">x</p>;', filename: SRC },
+
+    // ── (c) the bare RELLO routing literal outside rendered JSX ───────────
+    { code: 'const id = toSourceAppIdentifier("RELLO");', filename: LIB },
+    { code: 'const src = "RELLO";', filename: LIB },
+
+    // ── (d) components: key / ref / className / data-* stay exempt ────────
+    {
+      code: 'const el = <Badge key="Rello" ref={r} className="Rello-card" data-testid="Rello badge" />;',
+      filename: SRC,
+    },
+    { code: 'const el = <Ui.Card key="Rello" data-x="Rello" />;', filename: SRC },
 
     // ── tests, fixtures and allowlisted files ─────────────────────────────
     { code: 'const s = "Rello CRM";', filename: "src/lib/email/index.test.ts" },
@@ -186,6 +209,86 @@ ruleTester.run("no-legacy-brand-in-visible-text", rule, {
     // A file whose name merely contains "test" is still shipped code.
     { code: 'const s = "Rello CRM";', filename: "src/app/api/webhooks/[id]/test/route.ts", errors: [legacy("Rello")] },
     { code: 'const s = "Rello CRM";', filename: "src/lib/latest.ts", errors: [legacy("Rello")] },
+    // ── (a) compounds: the legacy name followed by an uppercase letter or digit ──
+    { code: "const el = <h1>RelloCRM</h1>;", filename: SRC, errors: [legacy("Rello")] },
+    { code: 'const w = "RelloCRM";', filename: LIB, errors: [legacy("Rello")] },
+    { code: 'const w = "Open RelloHub now";', filename: LIB, errors: [legacy("Rello")] },
+    { code: 'const w = "Rello2 is here";', filename: LIB, errors: [legacy("Rello")] },
+    { code: 'const w = "RELLO2 PLATFORM";', filename: LIB, errors: [legacy("RELLO")] },
+    { code: "const w = `View in RelloCRM ${x}`;", filename: LIB, errors: [legacy("Rello")] },
+    { code: "const el = <p>RallyrooHub</p>;", filename: SRC, errors: [typed("Rallyroo")] },
+
+    // ── (b) decoded values: entities and escapes that render the name ─────
+    { code: "const el = <h1>R&#101;llo</h1>;", filename: SRC, errors: [legacy("Rello")] },
+    { code: "const el = <h1>R&#x65;llo HQ</h1>;", filename: SRC, errors: [legacy("Rello")] },
+    { code: 'const el = <h1>{"R\\u0065llo"}</h1>;', filename: SRC, errors: [legacy("Rello")] },
+    { code: 'const s = "R\\u0065llo CRM";', filename: LIB, errors: [legacy("Rello")] },
+    { code: "const s = `R\\x65llo ${x}`;", filename: LIB, errors: [legacy("Rello")] },
+    { code: 'const s = "Rel\\u200Blo";', filename: LIB, errors: [legacy("Rello")] },
+    { code: "const email = { html: `<h1>R&#101;llo</h1>` };", filename: LIB, errors: [legacy("Rello")] },
+    { code: "const email = { html: `<p>${greeting}</p><p>The R&#101;llo team</p>` };", filename: LIB, errors: [legacy("Rello")] },
+    { code: 'const html = "<p>R&#101;llo</p>";', filename: LIB, errors: [legacy("Rello")] },
+    { code: 'const el = <img alt="R&#101;llo logo" />;', filename: SRC, errors: [legacy("Rello")] },
+    // Locations stay exact when an entity sits elsewhere in the text.
+    {
+      code: "const el = <p>Milo &amp; Rello</p>;",
+      filename: SRC,
+      errors: [{ messageId: "legacyBrand", data: { found: "Rello" }, line: 1, column: 26, endColumn: 31 }],
+    },
+    {
+      code: "const el = <p>R&#101;llo</p>;",
+      filename: SRC,
+      errors: [{ messageId: "legacyBrand", data: { found: "Rello" }, line: 1, column: 15, endColumn: 25 }],
+    },
+
+    // ...and when a JS escape sits before it, or spells it.
+    {
+      code: 'const s = "a\\u2192 Rello";',
+      filename: LIB,
+      errors: [{ messageId: "legacyBrand", data: { found: "Rello" }, line: 1, column: 20, endColumn: 25 }],
+    },
+    {
+      code: 'const s = "R\\u0065llo";',
+      filename: LIB,
+      errors: [{ messageId: "legacyBrand", data: { found: "Rello" }, line: 1, column: 12, endColumn: 22 }],
+    },
+    {
+      code: "const s = `Hi\\n\\nRello's Milo \\u2014 Rello`;",
+      filename: LIB,
+      errors: [
+        { messageId: "legacyBrand", data: { found: "Rello" }, line: 1, column: 18 },
+        { messageId: "legacyBrand", data: { found: "Rello" }, line: 1, column: 38 },
+      ],
+    },
+
+    // ── (c) RELLO shown in rendered JSX reports; the routing exemption is outside JSX ──
+    { code: 'const el = <h1>{"RELLO"}</h1>;', filename: SRC, errors: [legacy("RELLO")] },
+    { code: 'const el = <h1>{ok ? "RELLO" : "Milo"}</h1>;', filename: SRC, errors: [legacy("RELLO")] },
+    { code: "const el = <h1>{`RELLO`}</h1>;", filename: SRC, errors: [legacy("RELLO")] },
+    { code: "const el = <p>RELLO</p>;", filename: SRC, errors: [legacy("RELLO")] },
+    { code: 'const el = <h1>{"rello"}</h1>;', filename: SRC, errors: [legacy("rello")] },
+    { code: "const el = <p>Welcome to rello</p>;", filename: SRC, errors: [legacy("rello")] },
+    { code: 'const el = <div title="RELLO" />;', filename: SRC, errors: [legacy("RELLO")] },
+
+    // ── (d) props on Capitalized components report (only key/ref/className/data-* exempt) ──
+    { code: 'const el = <Badge id="Rello" />;', filename: SRC, errors: [legacy("Rello")] },
+    { code: 'const el = <Badge name="Rello CRM" />;', filename: SRC, errors: [legacy("Rello")] },
+    { code: 'const el = <Badge id={"Rello"} />;', filename: SRC, errors: [legacy("Rello")] },
+    { code: 'const el = <Ui.Card type="Rello" />;', filename: SRC, errors: [legacy("Rello")] },
+
+    // ── (e) Error / throw messages report: they reach screens (measured 13 in the hub) ──
+    { code: 'throw new Error("Rello API returned 500");', filename: LIB, errors: [legacy("Rello")] },
+    { code: "const e = new Error(`Rello lead ${id} missing`);", filename: LIB, errors: [legacy("Rello")] },
+    { code: 'throw new TypeError("Rello tenant missing");', filename: LIB, errors: [legacy("Rello")] },
+    { code: 'throw new RelloApiError("Rello rejected the key");', filename: LIB, errors: [legacy("Rello")] },
+    { code: 'throw "Rello is down";', filename: LIB, errors: [legacy("Rello")] },
+    { code: 'return Promise.reject(new Error("Rello down"));', filename: LIB, errors: [legacy("Rello")] },
+    {
+      code: 'function Page() { try { throw new Error("Rello unavailable"); } catch (e) { return <p>{e.message}</p>; } }',
+      filename: SRC,
+      errors: [legacy("Rello")],
+    },
+
     // An allowlist that does not match the file leaves the rule on.
     {
       code: 'const s = "Rello CRM";',

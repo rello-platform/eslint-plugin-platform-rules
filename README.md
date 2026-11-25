@@ -25,7 +25,7 @@ third leg of automation.
 | `require-tenantid-in-where` | warn (forcing-function; later → error) | (universal floor) | Prisma query on a tenant-scoped model whose `where` lacks `tenantId` — every query must filter by tenantId (CLAUDE.md §Security & tenant isolation) |
 | `no-db-in-liveness` | error | (NEON-AUTOSUSPEND) | Prisma/DB-client reaching a liveness `**/health/route.ts` — directly OR through the transitive import closure of its helpers (A-111) — liveness must be DB-free so the health poll can't pin Neon compute awake |
 | `no-network-write-on-client-interval` | warn (heuristic) | (NEON-AUTOSUSPEND / DISPATCH-31) | `fetch`/`sendBeacon` driven by an UNGUARDED `setInterval` (or self-rescheduling `setTimeout`) in a `"use client"` module — a client-interval server call wakes the shared hub every beat (even backgrounded) and defeats autosuspend; gate on `document.hidden` + `visibilitychange` or use React-Query `refetchInterval`. Suppressed when the module already handles visibility |
-| `no-legacy-brand-in-visible-text` | error, opt-in per repo (not in `recommended`) | (RALLYROO Phase 2) | "Rello" — or a hand-typed "Rallyroo"/"RallyRoo"/"RALLYROO" — in JSX text, visible JSX attributes or string/template literals; read `PLATFORM_BRAND.name` from `@rello-platform/slugs` (≥ v0.14.0). Logs, throws, keys, imports, slugs, hosts, headers and env names exempt |
+| `no-legacy-brand-in-visible-text` | error, opt-in per repo (not in `recommended`) | (RALLYROO Phase 2) | "Rello" — or a hand-typed "Rallyroo"/"RallyRoo"/"RALLYROO" — in JSX text, visible JSX attributes or string/template literals — whole word or compound (`RelloCRM`), as rendered (entities and escapes decoded); read `PLATFORM_BRAND.name` from `@rello-platform/slugs` (≥ v0.14.0). Logs, keys, imports, slugs, hosts, headers and env names exempt. Served JSON/Markdown/HTML: the `brand-content-scan` CLI in this package |
 
 Severity ramping is configured in `@rello-platform/eslint-config`, not here.
 This plugin exposes all thirteen rules; consumers select severities via the
@@ -166,21 +166,24 @@ const shown = tenant?.tenantName || PLATFORM_BRAND.name;
 
 **Reports** (one report per occurrence):
 
-- `legacyBrand` — the whole word `Rello` or `RELLO` (`Rello's`, `Rello-branded`, `Rello.` included);
-- `handTypedBrand` — `Rallyroo`, `RallyRoo`, `RALLYROO` or any other non-lowercase spelling typed by hand;
+- `legacyBrand` — `Rello` or `RELLO` as a whole word (`Rello's`, `Rello-branded`, `Rello.` included) or as a compound: followed by an uppercase letter or a digit (`RelloCRM`, `RelloHub`, `Rello2`, `RELLO2`). Inside rendered JSX children (JSX text, `{"…"}`, `{ok ? "…" : …}`) every casing counts, `rello` and `RELLO` included;
+- `handTypedBrand` — `Rallyroo`, `RallyRoo`, `RALLYROO` or any other non-lowercase spelling typed by hand (compounds too);
 
-inside JSX text, JSX string attributes (`title`, `alt`, `aria-label`, `placeholder`, `content`, component props such as `heading`), and string/template literals (`metadata.title`, From names, toast text, API error messages, email subjects).
+inside JSX text, JSX string attributes (`title`, `alt`, `aria-label`, `placeholder`, `content`, and any prop of a Capitalized component), and string/template literals (`metadata.title`, From names, toast text, API error messages, Error and throw messages, email subjects).
+
+It tests what **renders**, not the source spelling: the cooked value of string literals and template chunks (`"R\u0065llo"`), HTML entities in JSX text and attributes (`R&#101;llo`), entities inside strings or templates that read as HTML (`` html: `<h1>R&#101;llo</h1>` ``), and invisible zero-width / soft-hyphen characters inside the word. Report locations stay exact through entities and escapes.
 
 **Does not report** — internal names stay "Rello":
 
-- arguments of `console.*`, `logger.*` / `log.*` / `*Logger.*` calls, anything under `throw`, and `new Error(...)` / any `new *Error(...)`;
+- arguments of `console.*`, `logger.*` / `log.*` / `*Logger.*` calls (an `Error` built inside a log call included). `throw` and `new Error(...)` messages are **not** exempt since v0.6.1: an Error message is often rendered (`{e.message}`, an API error body). The hub had 13 when this changed; a genuinely internal one takes a disable comment with a reason;
 - import/export sources, `import()`, `require()`, `vi.mock()` / `jest.mock()` specifiers;
 - object, class and interface keys; identifiers; comments; TS literal types;
-- lowercase `rello` (the app slug) and a literal that is exactly `RELLO` (the routing identifier);
+- lowercase `rello` (the app slug) outside rendered JSX children, and a literal that is exactly `RELLO` (the routing identifier) outside JSX;
+- an all-caps run after `RELLO` (`RELLOAPI`), or a lowercase letter / underscore after the name (`Relloc`, `RELLO_API_URL`): a different word, not a compound;
 - tokens that are URLs, hostnames, email addresses or paths (`hellorello.app` and subdomains are domain-phase work), header names (`X-Rello-…`) and env var names (`RELLO_…`);
 - comparison operands, `case` tests and the search argument of `includes` / `startsWith` / `endsWith` / `indexOf` / `replace` / `replaceAll` / `split` / `match` / `search`;
 - SQL / GraphQL / style tagged templates (`sql`, `$queryRaw`, `gql`, `css`, `styled`, …);
-- non-visible JSX attributes: `className`, `id`, `key`, `ref`, `href`, `src`, `name`, `type`, `role`, `rel`, `target`, `htmlFor`, `style`, `data-*`, …;
+- non-visible attributes of lowercase DOM elements: `className`, `id`, `key`, `ref`, `href`, `src`, `name`, `type`, `role`, `rel`, `target`, `htmlFor`, `style`, `data-*`, …. On a Capitalized component (`<Badge id="…">`, `<Ui.Card type="…">`) only `key`, `ref`, `className` and `data-*` are exempt: any other prop may be displayed;
 - test, spec, mock, fixture and story files by name (`*.test.*`, `*.pg-test.*`, `*.node-test.*`, `*.test-helper.*`, `*.testkit.*`, `*.spec.*`, `*.fixture(s).*`, `*.stories.*`, `__tests__/`, `__fixtures__/`, `__mocks__/`).
 
 **Option** — `allow`: file globs (`**`, `*`, `?`) for genuine exceptions, matched against the path relative to the ESLint cwd and the absolute path:
@@ -194,9 +197,35 @@ inside JSX text, JSX string attributes (`title`, `alt`, `aria-label`, `placehold
 
 For a single line, use the canonical disable comment with a reason.
 
+**Known misses** — documented, not lint's job. The rendered-text sweep at the end of the rename catches these (each measured by RALLYROO AUDIT 1, audit1-013):
+
+| Shape | Example | Why lint misses it |
+|---|---|---|
+| split JSX | `<h1>Rel{"lo"}</h1>` | the word spans two nodes |
+| runtime concatenation | `<h1>{"Rel" + "lo"}</h1>`, `"Rel".concat("lo")` | the value exists only at run time |
+| a log-named object that writes the DOM | `const log = { info: (t) => { el.textContent = t; } }; log.info("Rello");` | `log.*` arguments are exempt by name |
+| a DOM write inside a `console.*` callback | `console.log(items.map(() => { el.textContent = "Rello"; return 1; }));` | the log-argument exemption covers the callback |
+
+**Served content** — JSON, Markdown, HTML and text files that a site serves directly never pass through ESLint. Scan them with the CLI in this package (below).
+
 **Rollout.** Not in `configs.recommended`: every repo still has visible "Rello" copy, so a shared default would turn every consumer red on the bump. Each repo adds it at `"error"` in its own ESLint config in the PR that clears that repo's copy. No autofix: the fix is an import plus an expression, and whether the string wants `name`, `domain` or `supportEmail` is the author's call.
 
-**Measured reach** (v0.6.0, hub `kellydavidsansom/Rello` @ `36e28325`, `src/`, rule off in the repo): 903 reports on 850 lines in 328 files.
+**Measured reach** (hub `kellydavidsansom/Rello`, `src/`, rule off in the repo): v0.6.0 @ `36e28325`: 903 reports on 850 lines in 328 files. v0.6.1 @ `29a8edf7` (and @ `36e28325`): 925 reports on 869 lines in 334 files. The +22 are 13 Error/throw messages, 8 compounds (7 name the `RelloTrialStart` model, 1 a GraphQL operation name) and 1 name after a `\n` escape that the v0.6.0 source-text scan could not see.
+
+#### `brand-content-scan` (CLI, v0.6.1+)
+
+The second brand guard, for files a site serves without passing through ESLint. Same matcher as the rule (whole word or compound; HTML entities and JSON `\u` escapes decoded; URLs, hosts, emails and paths skipped); legacy name only, since a Markdown file cannot import `PLATFORM_BRAND`. No dependencies.
+
+```bash
+node node_modules/@rello-platform/eslint-plugin-platform-rules/bin/brand-content-scan.js            # default globs
+node node_modules/@rello-platform/eslint-plugin-platform-rules/bin/brand-content-scan.js "content/**/*.md"
+```
+
+- Default globs: `public/**/*.{json,md,mdx,txt,html,webmanifest}` and `src/**/*.{json,md,mdx}` (`node_modules`, `.git`, `.next` skipped).
+- Prints `file:line: "Rello" — <line>` per hit, then a summary line with the number of files scanned.
+- Allow file: `--allow <file>`, else `.brand-scan-allow` at the root when present; one file glob per line, `#` comments.
+- Exit: `0` no hits · `1` hits · `2` an unreadable file or bad arguments (never reported clean).
+- Consumers add it as a package script, `"brand:scan": "node node_modules/@rello-platform/eslint-plugin-platform-rules/bin/brand-content-scan.js"`. It is not a hook.
 
 ### `no-module-eval-cross-app-clients`
 
